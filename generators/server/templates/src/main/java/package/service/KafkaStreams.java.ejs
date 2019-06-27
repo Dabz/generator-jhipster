@@ -1,0 +1,75 @@
+<%#
+ Copyright 2013-2019 the original author or authors from the JHipster project.
+
+ This file is part of the JHipster project, see https://www.jhipster.tech/
+ for more information.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-%>
+package <%=packageName%>.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+import javax.annotation.PostConstruct;
+import java.util.Properties;
+import org.apache.kafka.streams.*;
+import org.apache.kafka.streams.kstream.*;
+
+@Service
+public class <%= upperFirstCamelCase(baseName) %>KafkaStreams {
+
+    private static final Logger log = LoggerFactory.getLogger(<%= upperFirstCamelCase(baseName) %>KafkaStreams.class);
+    private static final String FROM_TOPIC = "topic_<%= baseName.toLowerCase() %>";
+    private static final String TO_TOPIC = "topic_<%= baseName.toLowerCase() %>_streamed";
+
+    public <%= upperFirstCamelCase(baseName) %>KafkaStreams() {
+    }
+
+    public static Properties getPrefixedProperties(String prefix) {
+        if (! prefix.endsWith(".")) {
+            prefix = prefix + ".";
+        }
+
+        Properties properties = new Properties();
+        for (Iterator it = ((AbstractEnvironment) env).getPropertySources().iterator(); it.hasNext(); ) {
+            PropertySource propertySource = (PropertySource) it.next();
+            if (propertySource instanceof MapPropertySource) {
+                MapPropertySource source = (MapPropertySource) propertySource;
+                for (String key : source.getPropertyNames()) {
+                    if (key.startsWith(prefix)) {
+                        String refactoredKey = key.replace(prefix, "");
+                        properties.setProperty(refactoredKey, propertySource.getProperty(key).toString());
+                    }
+                }
+            }
+        }
+
+        return properties;
+    }
+
+    @PostConstruct
+    public void start() {
+        Properties streamProperties = getPrefixedProperties("kafka.streams")
+        StreamsBuilder streamsBuilder = new StreamsBuilder();
+        streamsBuilder.stream(FROM_TOPIC)
+                .mapValues((v) -> String.format("> {}", v))
+                .to(TO_TOPIC);
+
+        KafkaStreams kafkaStreams = new KafkaStreams(streamsBuilder.build(), streamProperties);
+        kafkaStreams.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(kafkaStreams::close));
+    }
+}
